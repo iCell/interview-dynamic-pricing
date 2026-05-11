@@ -4,7 +4,6 @@ class Api::V1::PricingController < ApplicationController
   VALID_ROOMS = %w[SingletonRoom BooleanTwin RestfulKing].freeze
 
   before_action :validate_params
-  after_action :record_response_metric
 
   rescue_from RateApiClient::TimeoutError do |e|
     handle_error(:upstream_timeout, :gateway_timeout, "Upstream pricing service timed out")
@@ -42,22 +41,18 @@ class Api::V1::PricingController < ApplicationController
       room: params[:room]
     )
     @service.run
-
-    if @service.valid? && @service.result
-      render json: { rate: @service.result }
-    else
-      render json: { error: @service.errors.presence&.join(", ") || "Rate not found" },
-             status: :bad_request
-    end
+    render json: { rate: @service.result }
   end
 
-  # Override process_action so the structured log fires AFTER rescue_from
-  # has dispatched — at this point response.status is finalized. Putting
-  # this on after_action or around_action#ensure would run too early on
-  # the rescue_from path (status would still be 200).
+  # Override process_action so the structured log + response metric fire AFTER
+  # rescue_from has dispatched — at that point response.status is finalized.
+  # Using after_action would skip both on the rescue_from path entirely
+  # (exceptions abort the after_action chain before rescue_from catches them),
+  # leaving error responses uncounted and unlogged.
   def process_action(*args)
     super
   ensure
+    record_response_metric
     emit_request_log
   end
 

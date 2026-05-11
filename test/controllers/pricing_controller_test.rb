@@ -111,4 +111,17 @@ class Api::V1::PricingControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
     assert_includes JSON.parse(@response.body)["error"], "Invalid room"
   end
+
+  test "response metric is incremented on rescue_from error paths" do
+    before = PricingMetrics::RESPONSES.get(labels: { status: "504" })
+    raising = ->(**_) { raise RateApiClient::TimeoutError, "boom" }
+
+    RateApiClient.stub(:get_rate, raising) do
+      get api_v1_pricing_url, params: VALID_PARAMS
+    end
+
+    assert_response :gateway_timeout
+    after = PricingMetrics::RESPONSES.get(labels: { status: "504" })
+    assert_equal before + 1, after, "504 response should be counted in the metric"
+  end
 end
