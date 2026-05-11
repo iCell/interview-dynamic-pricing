@@ -1,7 +1,3 @@
-<div align="center">
-   <img src="/img/logo.svg?raw=true" width=600 style="background-color:white;">
-</div>
-
 # Dynamic Pricing Proxy
 
 A Rails proxy that sits between client traffic and Tripla's expensive
